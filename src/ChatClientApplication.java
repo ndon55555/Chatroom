@@ -21,31 +21,33 @@ public class ChatClientApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) throws IOException {
+        // Create UI elements
         Label lblMessages = new Label();
         lblMessages.setWrapText(true);
         TextField tfUserInput = new TextField();
+        System.out.println(tfUserInput.getPromptText());
         Button btnSend = new Button("Send Message");
         ScrollPane sp = new ScrollPane();
         sp.setContent(lblMessages);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
-        lblMessages.prefWidthProperty().bind(sp.widthProperty().subtract(20));
 
+        // Arrange UI elements
         HBox userControls = new HBox(10);
         userControls.getChildren().addAll(tfUserInput, btnSend);
         VBox primaryPane = new VBox(10);
         primaryPane.getChildren().addAll(sp, userControls);
         primaryPane.setPadding(new Insets(5, 5, 5, 5));
         primaryPane.setPrefHeight(400);
+
+        // Set property bindings
+        lblMessages.prefWidthProperty().bind(sp.widthProperty().subtract(20));
         sp.prefHeightProperty().bind(primaryPane.heightProperty().subtract(userControls.heightProperty()));
 
-        Scene scene = new Scene(primaryPane);
-        primaryStage.setScene(scene);
-        primaryStage.setTitle("Client Chat Application");
-        primaryStage.setResizable(false);
+        // Establish back and forth connections with server
+        ChatConnection cc = new ChatConnection(this.HOST, this.PORT, lblMessages, sp);
 
-        ChatConnection cc = new ChatConnection(this.HOST, this.PORT, lblMessages);
-
+        // Handle when user clicks button
         btnSend.setOnAction(event -> {
             String textInput = tfUserInput.getText();
 
@@ -53,30 +55,34 @@ public class ChatClientApplication extends Application {
                 cc.sendMessage(tfUserInput.getText());
                 tfUserInput.clear();
             }
-
-            // Any time user sends a message, automatically scroll their scrollbar down
-            sp.setVvalue(1.0);
         });
 
+        // Handle for when user presses enter when in the Textfield
         tfUserInput.setOnKeyPressed(event -> {
             if (event.getCode().equals(KeyCode.ENTER)) {
                 btnSend.fire();
             }
         });
 
+        // Prepare the Application for use
         cc.startReceivingMessages();
-
+        Scene scene = new Scene(primaryPane);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Client Chat Application");
+        primaryStage.setResizable(false);
         primaryStage.show();
     }
 
     private static class ChatConnection {
         Label toBeWrittenOn;
+        ScrollPane toBeAutoScrolled;
         Socket server;
         ServerWriter serverWriter;
         ServerReader serverReader;
 
-        ChatConnection(String host, int port, Label toBeWrittenOn) throws IOException {
+        ChatConnection(String host, int port, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) throws IOException {
             this.toBeWrittenOn = toBeWrittenOn;
+            this.toBeAutoScrolled = toBeAutoScrolled;
             this.connectToServer(host, port);
             this.setupReaderAndWriter();
         }
@@ -88,7 +94,7 @@ public class ChatClientApplication extends Application {
 
         private void setupReaderAndWriter() throws IOException {
             this.serverWriter = new ServerWriter(server.getOutputStream());
-            this.serverReader = new ServerReader(server.getInputStream(), this.toBeWrittenOn);
+            this.serverReader = new ServerReader(server.getInputStream(), this.toBeWrittenOn, this.toBeAutoScrolled);
         }
 
         void sendMessage(String msg) {
@@ -117,10 +123,12 @@ public class ChatClientApplication extends Application {
     private static class ServerReader implements Runnable {
         Scanner in;
         Label toBeWrittenOn;
+        ScrollPane toBeAutoScrolled;
 
-        ServerReader(InputStream inputStream, Label toBeWrittenOn) {
+        ServerReader(InputStream inputStream, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) {
             this.in = new Scanner(inputStream);
             this.toBeWrittenOn = toBeWrittenOn;
+            this.toBeAutoScrolled = toBeAutoScrolled;
         }
 
         @Override
@@ -128,14 +136,22 @@ public class ChatClientApplication extends Application {
             while (in.hasNextLine()) {
                 String newMsg = in.nextLine();
 
+                // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
                 Platform.runLater(() -> {
-                    String prevMsg = toBeWrittenOn.getText();
+                    String prevMsg = this.toBeWrittenOn.getText();
 
                     if (!prevMsg.isEmpty()) {
-                        toBeWrittenOn.setText(prevMsg + "\n" + newMsg);
+                        this.toBeWrittenOn.setText(prevMsg + "\n" + newMsg);
                     } else {
-                        toBeWrittenOn.setText(newMsg);
+                        this.toBeWrittenOn.setText(newMsg);
                     }
+
+                    // Following line lets the ScrollPane know that its content and therefore its own properties have
+                    // been updated. Can sort of think of this as a flush. This allows setVvalue to actually put it
+                    // in the intended spot.
+                    this.toBeAutoScrolled.layout();
+                    // Pull the scrollbar down every time a message is received.
+                    this.toBeAutoScrolled.setVvalue(1.0);
                 });
 
                 System.out.println(newMsg);
