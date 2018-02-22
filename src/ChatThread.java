@@ -13,7 +13,7 @@ public class ChatThread implements Runnable {
     private String header;
 
     // constructor
-    public ChatThread(Socket client) {
+    ChatThread(Socket client) {
         this.client = client;
         this.header = client.getInetAddress().getHostName();
         this.setupReaderAndWriter();
@@ -55,7 +55,7 @@ public class ChatThread implements Runnable {
     private void sendToAllClients(String msg) {
         for (Socket otherClient : ChatThread.clientWriters.keySet()) {
             PrintWriter out = ChatThread.clientWriters.get(otherClient);
-            out.println(this.header + ": " + msg);
+            out.println(this.header + ":\n" + msg + "\n");
         }
     }
 
