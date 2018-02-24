@@ -12,7 +12,7 @@ import java.io.*;
 import java.net.Socket;
 
 public class ChatClientApplication extends Application {
-    private final String HOST = "localhost";
+    private final String HOST = "donraspberrypi.ddns.net";
     private final int PORT = 10000;
     private final int MAX_USER_NAME_LENGTH = 20;
 
@@ -49,8 +49,8 @@ public class ChatClientApplication extends Application {
         ChatConnection cc = new ChatConnection(this.HOST, this.PORT, lblMessages, sp);
 
         // Makes sure that user doesn't pick a name longer than the max user name length.
-        // Platform.runLater() allows any extra characters to be added first so that it
-        // definitely clears out all extra characters.
+        // Platform.runLater() allows any extra characters to be added to the end first
+        // so that it definitely clears out all extra characters.
         tfUserName.setOnKeyTyped(event ->
             Platform.runLater(() -> {
                 String userName = tfUserName.getText();
@@ -153,11 +153,20 @@ public class ChatClientApplication extends Application {
         @Override
         public void run() {
             boolean isReceivingMessages = true;
+            String nameOfPrevSender = null;
 
             while (isReceivingMessages) {
                 try {
                     ClientMessage msg = (ClientMessage) in.readObject();
-                    String textToAdd = msg.getSenderName() + ":\n" + msg.getText() + "\n";
+                    String textToAdd;
+
+                    if (msg.getSenderName().equals(nameOfPrevSender)) {
+                        textToAdd = msg.getText();
+                    } else {
+                        textToAdd = msg.getSenderName() + ":\n" + msg.getText();
+                    }
+
+                    nameOfPrevSender = msg.getSenderName();
 
                     // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
                     Platform.runLater(() -> {
@@ -180,6 +189,7 @@ public class ChatClientApplication extends Application {
                     System.out.println(textToAdd);
                 } catch (Exception e) {
                     System.out.println("Problem reading message.");
+                    isReceivingMessages = false;
                     e.printStackTrace();
                 }
             }
