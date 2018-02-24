@@ -37,7 +37,7 @@ public class ChatThread implements Runnable {
             boolean isReceiving = true;
 
             while (isReceiving) {
-                Message clientMsg = (Message) in.readObject();
+                ClientMessage clientMsg = (ClientMessage) in.readObject();
                 System.out.println(this.clientAddress + ": " + clientMsg.getText());
                 this.sendToAllClients(clientMsg);
             }
@@ -49,7 +49,7 @@ public class ChatThread implements Runnable {
         this.closeSocket();
     }
 
-    private void sendToAllClients(Message msg) {
+    private void sendToAllClients(ClientMessage msg) {
         for (Socket otherClient : ChatThread.clientWriters.keySet()) {
             ObjectOutputStream out = ChatThread.clientWriters.get(otherClient);
 

@@ -66,7 +66,7 @@ public class ChatClientApplication extends Application {
             String textInput = tfUserInput.getText();
 
             if (!textInput.isEmpty()) {
-                cc.sendMessage(new Message(tfUserName.getText(), tfUserInput.getText()));
+                cc.sendMessage(new ClientMessage(tfUserName.getText(), tfUserInput.getText()));
                 tfUserInput.clear();
             }
         });
@@ -111,7 +111,7 @@ public class ChatClientApplication extends Application {
             this.serverReader = new ServerReader(server.getInputStream(), this.toBeWrittenOn, this.toBeAutoScrolled);
         }
 
-        void sendMessage(Message msg) {
+        void sendMessage(ClientMessage msg) {
             this.serverWriter.sendMessage(msg);
         }
 
@@ -129,7 +129,7 @@ public class ChatClientApplication extends Application {
             this.out = new ObjectOutputStream(outputStream);
         }
 
-        void sendMessage(Message msg) {
+        void sendMessage(ClientMessage msg) {
             try {
                 out.writeObject(msg);
             } catch (Exception e) {
@@ -156,7 +156,7 @@ public class ChatClientApplication extends Application {
 
             while (isReceivingMessages) {
                 try {
-                    Message msg = (Message) in.readObject();
+                    ClientMessage msg = (ClientMessage) in.readObject();
                     String textToAdd = msg.getSenderName() + ":\n" + msg.getText() + "\n";
 
                     // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()

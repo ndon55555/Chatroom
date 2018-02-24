@@ -1,10 +1,10 @@
 import java.io.Serializable;
 
-class Message implements Serializable {
+class ClientMessage implements Serializable {
     private String senderName;
     private String text;
 
-    Message(String senderName, String text) {
+    ClientMessage(String senderName, String text) {
         this.senderName = senderName;
         this.text = text;
     }
