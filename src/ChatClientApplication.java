@@ -8,20 +8,19 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
-import java.util.Scanner;
 
 public class ChatClientApplication extends Application {
-    private final String HOST = "donraspberrypi.ddns.net";
+    private final String HOST = "localhost";
     private final int PORT = 10000;
+    private final int MAX_USER_NAME_LENGTH = 20;
 
     @Override
     public void start(Stage primaryStage) throws IOException {
         // Create UI elements
+        Label lblPromptName = new Label("Enter your name:");
+        TextField tfUserName = new TextField();
         Label lblMessages = new Label();
         lblMessages.setWrapText(true);
         TextField tfUserInput = new TextField();
@@ -33,10 +32,12 @@ public class ChatClientApplication extends Application {
         sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
 
         // Arrange UI elements
+        HBox userNameStuff = new HBox(10);
         HBox userControls = new HBox(10);
-        userControls.getChildren().addAll(tfUserInput, btnSend);
         VBox primaryPane = new VBox(10);
-        primaryPane.getChildren().addAll(sp, userControls);
+        userNameStuff.getChildren().addAll(lblPromptName, tfUserName);
+        userControls.getChildren().addAll(tfUserInput, btnSend);
+        primaryPane.getChildren().addAll(userNameStuff, sp, userControls);
         primaryPane.setPadding(new Insets(5, 5, 5, 5));
         primaryPane.setPrefHeight(400);
 
@@ -47,12 +48,25 @@ public class ChatClientApplication extends Application {
         // Establish back and forth connections with server
         ChatConnection cc = new ChatConnection(this.HOST, this.PORT, lblMessages, sp);
 
+        // Makes sure that user doesn't pick a name longer than the max user name length.
+        // Platform.runLater() allows any extra characters to be added first so that it
+        // definitely clears out all extra characters.
+        tfUserName.setOnKeyTyped(event ->
+            Platform.runLater(() -> {
+                String userName = tfUserName.getText();
+
+                if (userName.length() > MAX_USER_NAME_LENGTH) {
+                    tfUserName.setText(userName.substring(0, MAX_USER_NAME_LENGTH));
+                    tfUserName.end(); // moves caret to the end of the text
+                }
+            }));
+
         // Handle when user clicks button
         btnSend.setOnAction(event -> {
             String textInput = tfUserInput.getText();
 
             if (!textInput.isEmpty()) {
-                cc.sendMessage(tfUserInput.getText());
+                cc.sendMessage(new Message(tfUserName.getText(), tfUserInput.getText()));
                 tfUserInput.clear();
             }
         });
@@ -97,8 +111,8 @@ public class ChatClientApplication extends Application {
             this.serverReader = new ServerReader(server.getInputStream(), this.toBeWrittenOn, this.toBeAutoScrolled);
         }
 
-        void sendMessage(String msg) {
-            this.serverWriter.println(msg);
+        void sendMessage(Message msg) {
+            this.serverWriter.sendMessage(msg);
         }
 
         void startReceivingMessages() {
@@ -109,52 +123,65 @@ public class ChatClientApplication extends Application {
     }
 
     private static class ServerWriter {
-        PrintWriter out;
+        ObjectOutputStream out;
 
-        ServerWriter(OutputStream outputStream) {
-            this.out = new PrintWriter(outputStream, true);
+        ServerWriter(OutputStream outputStream) throws IOException {
+            this.out = new ObjectOutputStream(outputStream);
         }
 
-        void println(String msg) {
-            out.println(msg);
+        void sendMessage(Message msg) {
+            try {
+                out.writeObject(msg);
+            } catch (Exception e) {
+                System.out.println("Problem sending message.");
+                e.printStackTrace();
+            }
         }
     }
 
     private static class ServerReader implements Runnable {
-        Scanner in;
+        ObjectInputStream in;
         Label toBeWrittenOn;
         ScrollPane toBeAutoScrolled;
 
-        ServerReader(InputStream inputStream, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) {
-            this.in = new Scanner(inputStream);
+        ServerReader(InputStream inputStream, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) throws IOException {
+            this.in = new ObjectInputStream(inputStream);
             this.toBeWrittenOn = toBeWrittenOn;
             this.toBeAutoScrolled = toBeAutoScrolled;
         }
 
         @Override
         public void run() {
-            while (in.hasNextLine()) {
-                String newMsg = in.nextLine();
+            boolean isReceivingMessages = true;
 
-                // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
-                Platform.runLater(() -> {
-                    String prevMsg = this.toBeWrittenOn.getText();
+            while (isReceivingMessages) {
+                try {
+                    Message msg = (Message) in.readObject();
+                    String textToAdd = msg.getSenderName() + ":\n" + msg.getText() + "\n";
 
-                    if (!prevMsg.isEmpty()) {
-                        this.toBeWrittenOn.setText(prevMsg + "\n" + newMsg);
-                    } else {
-                        this.toBeWrittenOn.setText(newMsg);
-                    }
+                    // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
+                    Platform.runLater(() -> {
+                        String prevMsgTexts = this.toBeWrittenOn.getText();
 
-                    // Following line lets the ScrollPane know that its content and therefore its own properties have
-                    // been updated. Can sort of think of this as a flush. This allows setVvalue to actually put it
-                    // in the intended spot.
-                    this.toBeAutoScrolled.layout();
-                    // Pull the scrollbar down every time a message is received.
-                    this.toBeAutoScrolled.setVvalue(1.0);
-                });
+                        if (!prevMsgTexts.isEmpty()) {
+                            this.toBeWrittenOn.setText(prevMsgTexts + "\n" + textToAdd);
+                        } else {
+                            this.toBeWrittenOn.setText(textToAdd);
+                        }
 
-                System.out.println(newMsg);
+                        // Following line lets the ScrollPane know that its content and therefore its own properties have
+                        // been updated. Can sort of think of this as a flush. This allows setVvalue to actually put it
+                        // in the intended spot.
+                        this.toBeAutoScrolled.layout();
+                        // Pull the scrollbar down every time a message is received.
+                        this.toBeAutoScrolled.setVvalue(1.0);
+                    });
+
+                    System.out.println(textToAdd);
+                } catch (Exception e) {
+                    System.out.println("Problem reading message.");
+                    e.printStackTrace();
+                }
             }
         }
     }
