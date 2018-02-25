@@ -1,19 +1,19 @@
 import javafx.application.Platform;
-import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.VBox;
 
 import java.io.*;
 import java.net.Socket;
 
 class ClientChatConnection {
-    private Label toBeWrittenOn;
+    private VBox chatBubbles;
     private ScrollPane toBeAutoScrolled;
     private Socket server;
     private ServerWriter serverWriter;
     private ServerReader serverReader;
 
-    ClientChatConnection(String host, int port, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) throws IOException {
-        this.toBeWrittenOn = toBeWrittenOn;
+    ClientChatConnection(String host, int port, VBox chatBubbles, ScrollPane toBeAutoScrolled) throws IOException {
+        this.chatBubbles = chatBubbles;
         this.toBeAutoScrolled = toBeAutoScrolled;
         this.connectToServer(host, port);
         this.setupReaderAndWriter();
@@ -21,12 +21,12 @@ class ClientChatConnection {
 
     private void connectToServer(String host, int port) throws IOException {
         this.server = new Socket(host, port);
-        System.out.println("Successfully connected to " + host + " at port " + port);
+        System.out.println("Successfully connected to " + host + " at port " + port + ".");
     }
 
     private void setupReaderAndWriter() throws IOException {
         this.serverWriter = new ServerWriter(server.getOutputStream());
-        this.serverReader = new ServerReader(server.getInputStream(), this.toBeWrittenOn, this.toBeAutoScrolled);
+        this.serverReader = new ServerReader(server.getInputStream(), this.chatBubbles, this.toBeAutoScrolled);
     }
 
     void sendMessage(ClientMessage msg) {
@@ -58,58 +58,51 @@ class ClientChatConnection {
 
     private static class ServerReader implements Runnable {
         ObjectInputStream in;
-        Label toBeWrittenOn;
+        VBox chatBubbles;
         ScrollPane toBeAutoScrolled;
 
-        ServerReader(InputStream inputStream, Label toBeWrittenOn, ScrollPane toBeAutoScrolled) throws IOException {
+        ServerReader(InputStream inputStream, VBox chatBubbles, ScrollPane toBeAutoScrolled) throws IOException {
             this.in = new ObjectInputStream(inputStream);
-            this.toBeWrittenOn = toBeWrittenOn;
+            this.chatBubbles = chatBubbles;
             this.toBeAutoScrolled = toBeAutoScrolled;
         }
 
         @Override
         public void run() {
             boolean isReceivingMessages = true;
-            String nameOfPrevSender = null;
+            ChatBubble lastChatBubble = null;
 
             while (isReceivingMessages) {
                 try {
                     ClientMessage msg = (ClientMessage) in.readObject();
-                    String textToAdd;
 
-                    if (msg.getSenderName().equals(nameOfPrevSender)) {
-                        textToAdd = msg.getText();
+                    if (lastChatBubble == null || !lastChatBubble.hasSenderName(msg.getSenderName())) {
+                        ChatBubble bubbleToAdd = new ChatBubble(msg);
+                        Platform.runLater(() -> this.chatBubbles.getChildren().add(bubbleToAdd));
+                        lastChatBubble = bubbleToAdd;
                     } else {
-                        textToAdd = msg.getSenderName() + ":\n" + msg.getText();
+                        lastChatBubble.addText(msg.getText());
                     }
 
-                    nameOfPrevSender = msg.getSenderName();
-
-                    // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
-                    Platform.runLater(() -> {
-                        String prevMsgTexts = this.toBeWrittenOn.getText();
-
-                        if (!prevMsgTexts.isEmpty()) {
-                            this.toBeWrittenOn.setText(prevMsgTexts + "\n" + textToAdd);
-                        } else {
-                            this.toBeWrittenOn.setText(textToAdd);
-                        }
-
-                        // Following line lets the ScrollPane know that its content and therefore its own properties have
-                        // been updated. Can sort of think of this as a flush. This allows setVvalue to actually put it
-                        // in the intended spot.
-                        this.toBeAutoScrolled.layout();
-                        // Pull the scrollbar down every time a message is received.
-                        this.toBeAutoScrolled.setVvalue(1.0);
-                    });
-
-                    System.out.println(textToAdd);
+                    this.updateScrollBar();
                 } catch (Exception e) {
                     System.out.println("Problem reading message.");
                     isReceivingMessages = false;
                     e.printStackTrace();
                 }
             }
+        }
+
+        private void updateScrollBar() {
+            // To change a JavaFX UI element from outside of the main thread, put the changes in Platform.runLater()
+            Platform.runLater(() -> {
+                // Following line lets the ScrollPane know that its content and therefore its own properties have
+                // been updated. Can sort of think of this as a flush. This allows setVvalue to actually put it
+                // in the intended spot.
+                this.toBeAutoScrolled.layout();
+                // Pull the scrollbar down every time a message is received.
+                this.toBeAutoScrolled.setVvalue(1.0);
+            });
         }
     }
 }

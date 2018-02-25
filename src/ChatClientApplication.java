@@ -4,8 +4,8 @@ import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -20,15 +20,16 @@ public class ChatClientApplication extends Application {
         // Create UI elements
         Label lblPromptName = new Label("Enter your name:");
         TextField tfUserName = new TextField();
-        Label lblMessages = new Label();
-        lblMessages.setWrapText(true);
+        VBox chatBubbles = new VBox(5.0);
+        chatBubbles.setBackground(new Background(new BackgroundFill(Color.WHITE, new CornerRadii(0.0), new Insets(0.0))));
+        chatBubbles.setPadding(new Insets(5.0));
         TextField tfUserInput = new TextField();
         System.out.println(tfUserInput.getPromptText());
         Button btnSend = new Button("Send Message");
-        ScrollPane sp = new ScrollPane();
-        sp.setContent(lblMessages);
+        ScrollPane sp = new ScrollPane(chatBubbles);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
+        sp.setPadding(new Insets(0.0));
 
         // Arrange UI elements
         HBox userNameStuff = new HBox(10);
@@ -37,15 +38,16 @@ public class ChatClientApplication extends Application {
         userNameStuff.getChildren().addAll(lblPromptName, tfUserName);
         userControls.getChildren().addAll(tfUserInput, btnSend);
         primaryPane.getChildren().addAll(userNameStuff, sp, userControls);
-        primaryPane.setPadding(new Insets(5, 5, 5, 5));
+        primaryPane.setPadding(new Insets(5.0));
         primaryPane.setPrefHeight(400);
 
         // Set property bindings
-        lblMessages.prefWidthProperty().bind(sp.widthProperty().subtract(20));
+        chatBubbles.prefWidthProperty().bind(sp.widthProperty().subtract(20));
+        chatBubbles.minHeightProperty().bind(sp.heightProperty());
         sp.prefHeightProperty().bind(primaryPane.heightProperty().subtract(userControls.heightProperty()));
 
-        // Establish back and forth connections with server
-        ClientChatConnection ccc = new ClientChatConnection(this.HOST, this.PORT, lblMessages, sp);
+        // Establish back and forth connections with server. Handles UI changes during runtime.
+        ClientChatConnection ccc = new ClientChatConnection(this.HOST, this.PORT, chatBubbles, sp);
 
         // Makes sure that user doesn't pick a name longer than the max user name length.
         // Platform.runLater() allows any extra characters to be added to the end first
