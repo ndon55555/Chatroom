@@ -46,6 +46,13 @@ public class ChatClientApplication extends Application {
         chatBubbles.minHeightProperty().bind(sp.heightProperty());
         sp.prefHeightProperty().bind(primaryPane.heightProperty().subtract(userControls.heightProperty()));
 
+        // Display UI
+        Scene scene = new Scene(primaryPane);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Client Chat Application");
+        primaryStage.setResizable(false);
+        primaryStage.show();
+
         // Establish back and forth connections with server. Handles UI changes during runtime.
         ClientChatConnection ccc = new ClientChatConnection(this.HOST, this.PORT, chatBubbles, sp);
 
@@ -79,13 +86,8 @@ public class ChatClientApplication extends Application {
             }
         });
 
-        // Prepare the Application for use
+        // Handle server interaction
         ccc.startReceivingMessages();
-        Scene scene = new Scene(primaryPane);
-        primaryStage.setScene(scene);
-        primaryStage.setTitle("Client Chat Application");
-        primaryStage.setResizable(false);
-        primaryStage.show();
     }
 
     public static void main(String[] args) {
